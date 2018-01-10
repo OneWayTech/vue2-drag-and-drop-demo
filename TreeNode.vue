@@ -1,10 +1,8 @@
 <template>
-  <!-- @dragover.prevent is a must (browsers disable dragover by default) -->
   <div
-    class="tree-node"
-    :class="{ 'empty-node': amIEmptyNode }"
+    :class="['tree-node', { 'empty-node': amIEmptyNode }]"
     :draggable="amIEmptyNode ? undefined : true"
-    @dragover.prevent
+    @dragover.prevent="/* @dragover.prevent is a must (browsers disable dragover by default) */"
     @dragstart.stop="handleDragStart"
     @drop.stop="handleDrop"
     @dragenter.stop="handleDragEnter"
@@ -31,72 +29,64 @@ export default {
   },
   computed: {
     amIEmptyNode () {
-      // an empty node is an empty object: {}
+      // data of an empty node is an empty object: {}
       return !this.data.label
     },
     /**
      * Generate adjacent empty nodes for each real node, in order to implement insertion actions
-     * e.g. [RN1, RN2, RN3] === displayed as ===> [EN1, RN1, EN2, RN2, EN3, RN3, EN4]
-     * (RN means Real Node, EN means Empty Node)
+     * e.g. [R1, R2, R3] === displayed as ===> [E1, R1, E2, R2, E3, R3, E4]
+     * (R means Real node, E means Empty node)
      */
     displayedChildren () {
       const realNodes = this.data.children
-      if (!realNodes || !realNodes.length) return [] // empty node or a real node without children
+      if (!realNodes || !realNodes.length) return [] // an empty node or a real node without children
 
       return realNodes.reduce((displayedChildren, realNode) => {
         displayedChildren.push(realNode, {}/* <--- empty node */)
         return displayedChildren
       }, [{}])
-    },
-    /**
-     * The drop-into node's limitation 1: am I the parent of the dragging node
-     * @return {Boolean}
-     */
-    isDraggingVmMySon () {
-      return this === this.shared.draggingVm.$parent
-    },
-    /**
-     * The drop-into node's limitation 2: am I the adjacent empty node of the dragging node
-     * @return {Boolean}
-     */
-    isDraggingVmMyAdjacence () {
-      const { draggingVm } = this.shared
-      return this.$parent === draggingVm.$parent && Math.abs(this.vmIdx - draggingVm.vmIdx) === 1
-    },
-    /**
-     * The drop-into node's limitation 3: am I exactly the dragging node or it happended to be my ancestor
-     * @return {Boolean}
-     */
-    isDraggingVmMyselfOrMyAncestor () {
-      var p = this
-      while (p) {
-        if (p === this.shared.draggingVm) return true
-        p = p.$parent.$options.name === 'TreeNode' ? p.$parent : null
-      }
-    },
-    /**
-     * Combination of the limitations above
-     * @return {Boolean}
-     */
-    isAllowedToDrop () {
-      return !(this.isDraggingVmMySon || this.isDraggingVmMyAdjacence || this.isDraggingVmMyselfOrMyAncestor)
     }
   },
   methods: {
     /**
-     * The context `this` is the dragging instance
+     * @context {this} - instance of dragging node
      */
     handleDragStart () {
-      // this.shared.draggingVm = this // does not ensure reactive
+      // this.shared.draggingVm = this // cannot ensure reactive
       this.$set(this.shared, 'draggingVm', this) // ensure reactive
       this.$el.classList.add('dragging-node')
     },
     /**
-     * The context `this` is the node (instance) to drop into, not the dragging instance
+     * @context {this} - instance of drop-into node
+     */
+    isAllowedToDrop () {
+      let vm = this
+      const { draggingVm } = vm.shared
+
+      // limitation 1: this cannot be the parent of the dragging node
+      if (vm === draggingVm.$parent) {
+        return false
+      }
+
+      // limitation 2: this cannot be the adjacent empty node of the dragging node
+      if (vm.$parent === draggingVm.$parent && Math.abs(vm.vmIdx - draggingVm.vmIdx) === 1) {
+        return false
+      }
+
+      // limitation 3: this cannot be the dragging node itself or its descendant
+      while (vm) {
+        if (vm === draggingVm) return false
+        vm = vm.$parent.$options.name === 'TreeNode' ? vm.$parent : null
+      }
+
+      return true
+    },
+    /**
+     * @context {this} - instance of drop-into node
      */
     handleDrop () {
       this.restoreStyle()
-      if (!this.isAllowedToDrop) return
+      if (!this.isAllowedToDrop()) return
 
       const { draggingVm } = this.shared
 
@@ -110,17 +100,17 @@ export default {
         return
       }
 
-      // case 2: drop into a real node to be its child
+      // case 2: drop into a real node as its child
       if (!this.data.children) {
         this.$set(this.data, 'children', []) // ensure reactive
       }
       this.data.children.push(draggingVm.data)
     },
     handleDragEnter () {
-      this.$el.classList.add(this.isAllowedToDrop ? 'drop-allowed' : 'drop-not-allowed')
+      this.$el.classList.add(this.isAllowedToDrop() ? 'drop-allowed' : 'drop-not-allowed')
     },
     handleDragLeave () {
-      if (this.shared.draggingVm !== this) {
+      if (this.shared.draggingVm !== this) { // avoid removing .dragging-node
         this.restoreStyle()
       }
     },
