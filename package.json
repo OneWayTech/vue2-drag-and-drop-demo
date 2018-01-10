@@ -1,0 +1,11 @@
+{
+  "name": "vue2-drag-and-drop-demo",
+  "version": "0.1.0",
+  "scripts": {
+    "start": "vue build App.vue",
+    "postinstall": "npm start"
+  },
+  "devDependencies": {
+    "vue-cli": "2.8.2"
+  }
+}
