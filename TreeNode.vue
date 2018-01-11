@@ -1,13 +1,12 @@
 <template>
-  <div
-    :class="['tree-node', { 'empty-node': amIEmptyNode }]"
+  <div :class="['tree-node', { 'empty-node': amIEmptyNode }]"
     :draggable="amIEmptyNode ? undefined : true"
-    @dragover.prevent="/* @dragover.prevent is a must (browsers disable dragover by default) */"
     @dragstart.stop="handleDragStart"
-    @drop.stop="handleDrop"
     @dragenter.stop="handleDragEnter"
+    @dragover.stop="handleDragOver"
+    @drop.stop="handleDrop"
     @dragleave.stop="handleDragLeave"
-    @dragend.prevent="handleDragEnd">
+    @dragend.stop="handleDragEnd">
     {{ data.label /* undefined if empty node */ }}
     <div v-if="displayedChildren.length" class="tree-node-children">
       <tree-node
@@ -49,14 +48,6 @@ export default {
   },
   methods: {
     /**
-     * @context {this} - instance of dragging node
-     */
-    handleDragStart () {
-      // this.shared.draggingVm = this // cannot ensure reactive
-      this.$set(this.shared, 'draggingVm', this) // ensure reactive
-      this.$el.classList.add('dragging-node')
-    },
-    /**
      * @context {this} - instance of drop-into node
      */
     isAllowedToDrop () {
@@ -82,10 +73,32 @@ export default {
       return true
     },
     /**
+     * @context {this} - instance of dragging node
+     */
+    handleDragStart () {
+      // this.shared.draggingVm = this // cannot ensure reactive
+      this.$set(this.shared, 'draggingVm', this) // ensure reactive
+      this.$el.classList.add('dragging-node')
+    },
+    /**
+     * @context {this} - instance of drop-into node
+     */
+    handleDragEnter () {
+      this.$el.classList.add(this.isAllowedToDrop() ? 'drop-allowed' : 'drop-not-allowed')
+    },
+    /**
+     * @context {this} - instance of drop-into node
+     * Note that this function invokes once per every few hundred milliseconds
+     */
+    handleDragOver (e) {
+      e.preventDefault() // must!!!
+      e.dataTransfer.dropEffect = this.isAllowedToDrop() ? 'move' : 'none'
+    },
+    /**
      * @context {this} - instance of drop-into node
      */
     handleDrop () {
-      this.restoreStyle()
+      this.revertClass()
       if (!this.isAllowedToDrop()) return
 
       const { draggingVm } = this.shared
@@ -106,20 +119,21 @@ export default {
       }
       this.data.children.push(draggingVm.data)
     },
-    handleDragEnter () {
-      this.$el.classList.add(this.isAllowedToDrop() ? 'drop-allowed' : 'drop-not-allowed')
-    },
+    /**
+     * @context {this} - instance of drop-into node
+     */
     handleDragLeave () {
-      if (this.shared.draggingVm !== this) { // avoid removing .dragging-node
-        this.restoreStyle()
-      }
+      this.revertClass()
     },
+    /**
+     * @context {this} - instance of dragging node
+     */
     handleDragEnd () {
       this.shared.draggingVm = null
-      this.restoreStyle()
+      this.$el.classList.remove('dragging-node')
     },
-    restoreStyle () {
-      this.$el.classList.remove('dragging-node', 'drop-allowed', 'drop-not-allowed')
+    revertClass () {
+      this.$el.classList.remove('drop-allowed', 'drop-not-allowed')
     }
   }
 }
@@ -140,7 +154,8 @@ export default {
   margin-left: 30px; /* indention */
 }
 .dragging-node {
-  color: #fff;
+  color: orange;
+  opacity: 0.7;
 }
 .drop-allowed {
   height: 30px;
@@ -149,7 +164,6 @@ export default {
   background-color: yellow;
 }
 .drop-not-allowed {
-  cursor: not-allowed;
-  background-color: #ddd;
+  opacity: 0.7;
 }
 </style>
